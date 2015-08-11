@@ -26,6 +26,8 @@ import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.UUID;
 
 /**
@@ -74,6 +76,10 @@ public class BflFwUploadService extends Service {
     public final static int EACH_CONN_DATA_SIZE = 512;      // Maximum data size of each connection event: 512 bytes.
     public final static int EACH_CONN_DATA_INFO = 3;        // Sequence number & data size inforamtion of each connection event.
 
+    public final static String ERROR_LOST_GATT =
+            "kr.co.sevencore.ble.fota.lib.upload.ERROR_LOST_GATT";
+    public final static String ERROR_LOST_DEVICE_INFORMATION =
+            "kr.co.sevencore.ble.fota.lib.upload.ERROR_LOST_DEVICE_INFORMATION";
     public final static String ACTION_GATT_CONNECTING =
             "kr.co.sevencore.ble.fota.lib.upload.ACTION_GATT_CONNECTING";
     public final static String ACTION_GATT_CONNECTED =
@@ -172,22 +178,7 @@ public class BflFwUploadService extends Service {
          */
         @Override
         public boolean initUploader() throws RemoteException {
-            // For API level 18 and above, get a reference to BluetoothAdapter through BluetoothManager.
-            if (mBflBluetoothManager == null) {
-                mBflBluetoothManager = (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
-                if (mBflBluetoothManager == null) {
-                    Log.e(BLE_FOTA_TAG, "Unable to initialize BluetoothManager.");
-                    return false;
-                }
-            }
-
-            mBflBluetoothAdapter = mBflBluetoothManager.getAdapter();
-            if (mBflBluetoothAdapter == null) {
-                Log.e(BLE_FOTA_TAG, "Unable to obtain a BluetoothAdapter.");
-                return false;
-            }
-
-            return true;
+            return initialize();
         }
 
         /**
@@ -199,47 +190,7 @@ public class BflFwUploadService extends Service {
          */
         @Override
         public boolean connect(final String address) throws RemoteException {
-            if (mBflBluetoothAdapter == null || address == null) {
-                Log.w(BLE_FOTA_TAG, "BluetoothAdapter is not initialized or unspecified address.");
-                return false;
-            }
-
-            if (mBflBluetoothGatt == null) {
-                Log.d(BLE_FOTA_TAG, "BLUETOOTH GATT is NULL !!!!!!!!!!!!!!!");
-            }
-            if (mBleDeviceAddress == null) {
-                Log.d(BLE_FOTA_TAG, "ADDRESS is NULL ?!?!?!");
-            }
-
-            // If the device is previously connected device, try to re-connect,
-            if (mBflBluetoothGatt != null && mBleDeviceAddress != null &&
-                    address.equals(mBleDeviceAddress)) {
-                Log.i(BLE_FOTA_TAG, "Trying to use an existing Bluetooth GATT for connection.");
-
-                if (mBflBluetoothGatt.connect()) {
-                    Log.i(BLE_FOTA_TAG, "Creating connection with the existing Bluetooth GATT.");
-                    return true;
-                } else {
-                    return false;
-                }
-            }
-
-            // Find remote device & make connection state. (Connection to GATT server)
-            final BluetoothDevice device = mBflBluetoothAdapter.getRemoteDevice(address);
-            if(device == null) {
-                Log.w(BLE_FOTA_TAG, "Device not found. Unable to connect.");
-                return false;
-            }
-
-            mBflGattCharacteristics = new ArrayList<ArrayList<BluetoothGattCharacteristic>>();
-            mContext = getApplicationContext();
-            // Set the autoConnect parameter to false.
-            // If you want to directly connect to the device,
-            // parameter: device.connectCatt(CONTEXT, (IF FIND) AUTO_CONNECT, BLUETOOTH_CALLBACK);
-            mBflBluetoothGatt = device.connectGatt(mContext, false, mGattCallback);
-            Log.i(BLE_FOTA_TAG, "Trying to create a new connection.");
-            mBleDeviceAddress = address;
-            return true;
+            return createConnection(address);
         }
 
         /**
@@ -514,6 +465,80 @@ public class BflFwUploadService extends Service {
     }
 
     /**
+     * Initializes a reference to the local Bluetooth adapter.
+     *
+     * @return Return true if the initialization is successful.
+     */
+    private boolean initialize() {
+        // For API level 18 and above, get a reference to BluetoothAdapter through BluetoothManager.
+        if (mBflBluetoothManager == null) {
+            mBflBluetoothManager = (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
+            if (mBflBluetoothManager == null) {
+                Log.e(BLE_FOTA_TAG, "Unable to initialize BluetoothManager.");
+                return false;
+            }
+        }
+
+        mBflBluetoothAdapter = mBflBluetoothManager.getAdapter();
+        if (mBflBluetoothAdapter == null) {
+            Log.e(BLE_FOTA_TAG, "Unable to obtain a BluetoothAdapter.");
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Create connection with the BLE device.
+     *
+     * @param address is the BLE device MAC address to be connected.
+     * @return is a result of creating connection with the BLE device.
+     */
+    private boolean createConnection(final String address) {
+        if (mBflBluetoothAdapter == null || address == null) {
+            Log.w(BLE_FOTA_TAG, "BluetoothAdapter is not initialized or unspecified address.");
+            return false;
+        }
+
+        // If the device is previously connected device, try to re-connect,
+        if (mBflBluetoothGatt != null) {
+            if (mBleDeviceAddress != null && address.equals(mBleDeviceAddress)) {
+                Log.i(BLE_FOTA_TAG, "Trying to use an existing Bluetooth GATT for connection.");
+
+                if (mBflBluetoothGatt.connect()) {
+                    Log.i(BLE_FOTA_TAG, "Creating connection with the existing Bluetooth GATT.");
+                    return true;
+                } else {
+                    return false;
+                }
+            } else {
+                broadcastUpdate(ERROR_LOST_DEVICE_INFORMATION);
+                Log.d(BLE_FOTA_TAG, "ADDRESS is NULL");
+            }
+        } else {
+            broadcastUpdate(ERROR_LOST_GATT);
+            Log.d(BLE_FOTA_TAG, "BLUETOOTH GATT is NULL");
+        }
+
+        // Find remote device & make connection state. (Connection to GATT server)
+        final BluetoothDevice device = mBflBluetoothAdapter.getRemoteDevice(address);
+        if(device == null) {
+            Log.w(BLE_FOTA_TAG, "Device not found. Unable to connect.");
+            return false;
+        }
+
+        mBflGattCharacteristics = new ArrayList<ArrayList<BluetoothGattCharacteristic>>();
+        mContext = getApplicationContext();
+        // Set the autoConnect parameter to false.
+        // If you want to directly connect to the device,
+        // parameter: device.connectCatt(CONTEXT, (IF FIND) AUTO_CONNECT, BLUETOOTH_CALLBACK);
+        mBflBluetoothGatt = device.connectGatt(mContext, true, mGattCallback);
+        Log.i(BLE_FOTA_TAG, "Trying to create a new connection.");
+        mBleDeviceAddress = address;
+        return true;
+    }
+
+    /**
      * Callback methods for GATT events that the app cares about.
      * For example, connection change and service discovered.
      *
@@ -564,6 +589,31 @@ public class BflFwUploadService extends Service {
                 Log.i(BLE_FOTA_TAG, "GATT services discovered.");
             } else {
                 Log.w(BLE_FOTA_TAG, "onServiceDiscovered received: " + status);
+
+                /*try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                mBflBluetoothGatt.discoverServices();*/
+                mBflBluetoothAdapter.disable();
+
+                Timer initAdapterTimer = new Timer();
+                initAdapterTimer.schedule(new TimerTask() {
+                    @Override
+                    public void run() {
+                        mBflBluetoothAdapter.enable();
+                    }
+                }, 1000);
+
+                Timer connCtrlTimer = new Timer();
+                connCtrlTimer.schedule(new TimerTask() {
+                    @Override
+                    public void run() {
+                        initialize();
+                        createConnection(mBleDeviceAddress);
+                    }
+                }, 2000);
             }
         }
 

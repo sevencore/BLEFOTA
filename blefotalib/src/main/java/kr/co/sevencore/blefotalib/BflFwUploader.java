@@ -72,6 +72,7 @@ public class BflFwUploader {
 
     private OnUploadSvcInit mUploadSvcInitCallback;                 // Service initialization result of the firmware upload callback.
     private OnConnectionState mConnectionCallback;                   // BLE connection status callback.
+    private OnErrorStateListener mErrorStateCallback;                // Error state for connection callback.
     private OnUpdateGattServiceListener mUpdateGattServiceCallback; // GATT service list adapter callback.
     private OnDeviceInfoListener mDeviceInfoCallback;                // Device and firmware status related information in doing FOTA callback.
 
@@ -108,6 +109,21 @@ public class BflFwUploader {
          *              false: disconnected.
          */
         void onConnectionState(boolean state);
+    }
+
+    /**
+     * OnErrorStateListener interface is used to notify error state.
+     * If a main application needs to get the error state of Bluetooth GATT or device information to used for connection,
+     * use onErrorStateListener.
+     */
+    public interface OnErrorStateListener {
+        /**
+         * Get error state.
+         *
+         * @param state true: Error state.
+         *              false: Normal state.
+         */
+        void onErrorStateListener(boolean state);
     }
 
     /**
@@ -163,6 +179,15 @@ public class BflFwUploader {
      */
     public void setOnConnectionState(OnConnectionState callback) {
         mConnectionCallback = callback;
+    }
+
+    /**
+     * Save a callback object to mErrorStateCallback.
+     *
+     * @see kr.co.sevencore.blefotalib.BflFwUploader.OnErrorStateListener
+     */
+    public void setOnErrorStateListener(OnErrorStateListener callback) {
+        mErrorStateCallback = callback;
     }
 
     /**
@@ -256,8 +281,20 @@ public class BflFwUploader {
                     Log.e(BLE_FOTA_TAG, "Unable to initialize Bluetooth.");
                 }
 
+                try {
+                    Thread.sleep(500);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+
                 if (mUploadSvcInitCallback != null) {
                     mUploadSvcInitCallback.onUploadSvcInit(initResult);
+                }
+
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
                 }
 
                 if(mAddress != null) {
@@ -294,7 +331,17 @@ public class BflFwUploader {
             final String action = intent.getAction();
 
             if (action != null) {
-                if (BflFwUploadService.ACTION_GATT_CONNECTED.equals(action)) {
+                if (BflFwUploadService.ERROR_LOST_GATT.equals(action)) {
+
+                    if (mErrorStateCallback != null) {
+                        mErrorStateCallback.onErrorStateListener(true);
+                    }
+                } else if (BflFwUploadService.ERROR_LOST_DEVICE_INFORMATION.equals(action)) {
+
+                    if (mErrorStateCallback != null) {
+                        mErrorStateCallback.onErrorStateListener(true);
+                    }
+                } else if (BflFwUploadService.ACTION_GATT_CONNECTED.equals(action)) {
                     Log.i(BLE_FOTA_TAG, "The device is connected.");
 
                     // Update connection state by the callback.
@@ -515,6 +562,11 @@ public class BflFwUploader {
                     sManufacturerName = intent.getStringExtra(BflFwUploadService.EXTRA_DATA);
 
                     if (sInitAutoProgressFlag) {
+                        try {
+                            Thread.sleep(700);
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
+                        }
                         // Model number characteristic read property execution.
                         executeReadModelNumber();
                     }
@@ -529,6 +581,11 @@ public class BflFwUploader {
                     sModelNumber = intent.getStringExtra(BflFwUploadService.EXTRA_DATA);
 
                     if (sInitAutoProgressFlag) {
+                        try {
+                            Thread.sleep(700);
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
+                        }
                         // Serial number characteristic read property execution.
                         executeReadSerialNumber();
                     }
@@ -1118,6 +1175,9 @@ public class BflFwUploader {
      */
     private static IntentFilter makeGattUpdateIntentFilter() {
         final IntentFilter intentFilter = new IntentFilter();
+        intentFilter.addAction(BflFwUploadService.ERROR_LOST_GATT);
+        intentFilter.addAction(BflFwUploadService.ERROR_LOST_DEVICE_INFORMATION);
+
         intentFilter.addAction(BflFwUploadService.ACTION_GATT_CONNECTING);
         intentFilter.addAction(BflFwUploadService.ACTION_GATT_CONNECTED);
         intentFilter.addAction(BflFwUploadService.ACTION_GATT_DISCONNECTING);
