@@ -54,6 +54,7 @@ public class BflFwUploader {
     private static String sFirmwareStatus;               // Firmware software status.
 
     private static byte sFirmwareUpgradeTypeFlag = 0;   // Flag 0 : Normal upgrade | Flag 1 : Forced upgrade
+    private static byte sResetFlag = 1;                 // Flag 0: Not reset | Flag 1: Reset
 
     private static String sManufacturerName;             // Device manufacturer name.
     private static String sModelNumber;                  // Device model number.
@@ -536,6 +537,17 @@ public class BflFwUploader {
                                 break;
 
                             case SUCCESSFUL:
+                                try {
+                                    mBflUploadBinder.executeWriteReset(
+                                            ServiceIdxCode.SERVICE_FIRMWARE_UPGRADE.getCode(),
+                                            CharacteristicFotaIdxCode.CHARACTERISTIC_RESET.getCode(),
+                                            sResetFlag
+                                    );
+                                    Log.i(BLE_FOTA_TAG, "Target device reset now.");
+                                } catch (RemoteException e) {
+                                    e.printStackTrace();
+                                }
+
                                 if (mDeviceInfoCallback != null) {
                                     mDeviceInfoCallback.onDeviceInfoListener(
                                             UploadCode.DEVICE_FIRMWARE_STATUS_SUCCESSFUL_FINISH.getCode(),

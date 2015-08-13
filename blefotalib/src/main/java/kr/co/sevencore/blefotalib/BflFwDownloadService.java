@@ -35,6 +35,11 @@ import kr.co.sevencore.blefotalib.BflCodeList.DownloadCode;
  *  -> Internal directory (disabled): dir = getDir(sProductName, Context.MODE_PRIVATE); dirPath = dir.getAbsolutePath() + "/" + fileName;
  *  -> External storage for debugging: dirPath = "/storage/sdcard0/Download/" + fileName;
  *
+ * !Notice: 
+ *  - Insert your server URL. (FIRMWARE_MANAGING_SERVER_URL)
+ *  - Insert server DB account ID. (FIRMWARE_MANAGING_SERVER_SERVER_ACCOUNT_ID)
+ *  - Insert server DB passwd. (FIRMWARE_MANAGING_SERVER_ACCOUNT_PWD)
+ *
  * 2015 SEVENCORE Co., Ltd.
  *
  * @author Jungwoo Park
@@ -59,13 +64,13 @@ public class BflFwDownloadService extends Service {
     private static String sVersion;      // Firmware version information from the server.
     private static String sUrl;          // Firmware download URL.
 
-    private final static String FIRMWARE_MANAGING_SERVER_URL = "http://ec2-54-148-83-75.us-west-2.compute.amazonaws.com/";
+    private final static String FIRMWARE_MANAGING_SERVER_URL = ""; //Insert your server URL.
     private final static String FIRMWARE_MANAGING_SERVER_DIR = "BLE_FIRMWARE/";
     private final static String FIRMWARE_MANAGING_SERVER_GETPRODUCTNAME = "getproductname.php";
     private final static String FIRMWARE_MANAGING_SERVER_GETURL = "geturl.php";
     private final static String FIRMWARE_MANAGING_SERVER_GETVERSION = "getversion.php";
-    private final static String FIRMWARE_MANAGING_SERVER_SERVER_ACCOUNT_ID = "dbuser=sevencore"; // Reserved.
-    private final static String FIRMWARE_MANAGING_SERVER_ACCOUNT_PWD = "dbpasswd=sevencore";      // Reserved.
+    private final static String FIRMWARE_MANAGING_SERVER_SERVER_ACCOUNT_ID = "dbuser=account_ID"; // Insert server DB account ID.
+    private final static String FIRMWARE_MANAGING_SERVER_ACCOUNT_PWD = "dbpasswd=pwd";      // Insert server DB passwd.
     private final static String FIRMWARE_MANAGING_SERVER_MAC_ID_IDENTIFIER = "?mac=";
 
     public final static String ACTION_ERROR_UNKNOWN_DEVICE =
